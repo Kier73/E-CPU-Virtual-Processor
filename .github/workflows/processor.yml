@@ -1,0 +1,97 @@
+name: Interact with E-CPU Virtual Processor
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'A Ground-native intention (no arbitrary code execution)'
+        required: true
+        type: choice
+        options:
+          - observe
+          - peek
+          - navigate
+          - advance
+      coordinate:
+        description: 'For peek/navigate: integer coordinate (0 to 2^63-1)'
+        required: false
+        type: string
+        default: ''
+      distance:
+        description: 'For advance: positive integer distance'
+        required: false
+        type: string
+        default: ''
+permissions:
+  contents: write
+# Serialize mutations of one logical processor. A separate Git fast-forward
+# push rejects competing writers outside this concurrency group.
+concurrency:
+  group: ecpu-virtual-processor-primary
+  cancel-in-progress: false
+jobs:
+  realize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install the pinned native E-CPU computational realizer
+        run: python -m pip install 'git+https://github.com/Kier73/E-CPU.git@6fd416facdb2aefd6fc7d66a06b014e3d31b5a52'
+      - name: Recover state from distinct durable Git branch and apply intention
+        shell: bash
+        env:
+          VP_OPERATION: ${{ inputs.operation }}
+          VP_COORDINATE: ${{ inputs.coordinate }}
+          VP_DISTANCE: ${{ inputs.distance }}
+          VP_ACTOR: ${{ github.actor }}
+          VP_REQUEST_ID: gha-${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/processor-state:refs/remotes/origin/processor-state'
+          STATE_DIR="$RUNNER_TEMP/ecpu-vp-state"
+          git worktree add --detach "$STATE_DIR" refs/remotes/origin/processor-state
+          JOURNAL="$STATE_DIR/environments/primary.jsonl"
+          python -m vp.cli bootstrap --journal "$JOURNAL" --processor-id ecpu-vp-primary
+          args=(--journal "$JOURNAL" --actor "$VP_ACTOR" --request-id "$VP_REQUEST_ID" --operation "$VP_OPERATION")
+          case "$VP_OPERATION" in
+            observe)
+              [[ -z "$VP_COORDINATE" && -z "$VP_DISTANCE" ]] || { echo 'observe accepts no coordinate or distance'; exit 2; }
+              ;;
+            peek|navigate)
+              [[ -n "$VP_COORDINATE" && -z "$VP_DISTANCE" ]] || { echo 'peek/navigate require coordinate only'; exit 2; }
+              args+=(--coordinate "$VP_COORDINATE")
+              ;;
+            advance)
+              [[ -n "$VP_DISTANCE" && -z "$VP_COORDINATE" ]] || { echo 'advance requires distance only'; exit 2; }
+              args+=(--distance "$VP_DISTANCE")
+              ;;
+            *) echo 'unsupported operation'; exit 2;;
+          esac
+          python -m vp.cli run "${args[@]}" > "$RUNNER_TEMP/vp-receipt.json"
+          python -m vp.cli verify --journal "$JOURNAL" > "$RUNNER_TEMP/vp-verified.json"
+          git -C "$STATE_DIR" add -- environments/primary.jsonl
+          if ! git -C "$STATE_DIR" diff --cached --quiet; then
+            git -C "$STATE_DIR" -c user.name='ecpu-vp[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "vp: $VP_OPERATION ($VP_REQUEST_ID)"
+            # No force: a concurrent external state commit makes this fail closed.
+            git -C "$STATE_DIR" push origin HEAD:refs/heads/processor-state
+          fi
+          echo '## E-CPU Virtual Processor result' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo 'The command was admitted and the resulting journal verified.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'The state-branch Git push (if changed) completed before this report.' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/vp-receipt.json" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/vp-receipt.json"
+      - name: Retain reproducible verified observation receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecpu-vp-observation
+          path: ${{ runner.temp }}/vp-receipt.json
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,30 @@
+name: Verify virtual processor
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'vp/**'
+      - 'tests/**'
+      - '.github/workflows/verify.yml'
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  protocol-and-native-ecpu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install exact E-CPU native revision
+        run: python -m pip install 'git+https://github.com/Kier73/E-CPU.git@6fd416facdb2aefd6fc7d66a06b014e3d31b5a52'
+      - name: Test recovery, idempotency, adversarial journals and native navigation
+        run: python -m unittest discover -s tests -v
+      - name: CLI smoke test with independently reopened journal
+        run: |
+          python -m vp.cli bootstrap --journal "$RUNNER_TEMP/test-vp.jsonl"
+          python -m vp.cli run --journal "$RUNNER_TEMP/test-vp.jsonl" --actor ci --request-id smoke-1 --operation navigate --coordinate 1000000000000
+          python -m vp.cli verify --journal "$RUNNER_TEMP/test-vp.jsonl"
