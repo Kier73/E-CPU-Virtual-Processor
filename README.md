@@ -100,6 +100,17 @@ This is an **architectural control-plane milestone**, not a claim that a pretrai
 
 Run `python -m vp.moe describe --model qwen3-235b-a22b` or use the [large MoE reference Action](.github/workflows/moe-plan.yml). Read the [VP-002 specification, verification contract and exact reproduction commands](docs/VP-002.md).
 
+## VP-003: Queryable neural inference (native and hosted)
+
+The virtual processor now has a **query API**, beyond the VP-001 affine cursor and VP-002 large-MoE topology. It supports two explicitly distinguished realizations:
+
+- **Native sparse neural math:** execute a receiver-owned, parameter-bearing SwiGLU expert sublayer through E-CPU's existing Virtual Layer and Hypervisor. Verified local NumPy/Safetensors weights, router matrix multiplication, selected-expert aggregation, and an independent scalar numerical oracle produce operation receipts. Missing/altered tensors and forged outputs are refused.
+- **Full text generation through an E-CPU-governed host:** submit a prompt to a provisioned Transformers/PyTorch language model via an E-CPU operator. The model's actual tokenizer and generation backend perform autoregressive inference. It is *not* a claim that those entire computations have been translated to E-CPU's native SIMT tensor algebra.
+
+Run a **local synthetic 128-expert** numerical experiment with `python examples/provision_sparse_demo.py`, then `python -m vp.sparse_query --index local-moe-demo/weights.json --hidden local-moe-demo/hidden.json --request-id first` after provisioning E-CPU. Query a **real pretrained text model** through `python -m vp.query --model-id <model> --revision <40-char-sha> --prompt 'Hello' --request-id first` with separately provisioned weights and the optional Transformers/Accelerate dependencies. For a warm HTTP endpoint, run `python -m vp.query_server` with explicit model/revision and an API token. See [VP-003 executable usage and evidence contract](docs/VP-003.md).
+
+The interfaces do **not** hard-code a total model parameter count. Resource feasibility, accessible weights, numerical operator support, and authenticated tensor placement still determine whether a particular model can actually execute. **235B full inference, persistent KV recovery, and distributed E-CPU-native Transformer execution remain unverified development objectives.**
+
 ## Vision
 
 We seek a processor whose identity is constituted by a coherent, independently verifiable computational state-space—not by an always-running operating-system process. Observation can produce a computational result, and a Ground can make distant coordinates directly navigable without enumerating intermediate states. An appropriate host realizes an admitted transformation, verifies it, and returns the processor to its addressable, recoverable state.
