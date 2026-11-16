@@ -113,6 +113,19 @@ To bind an actual **Qwen3-30B/235B Safetensors snapshot** to E-CPU's sparse oper
 
 The interfaces do **not** hard-code a total model parameter count. Resource feasibility, accessible weights, numerical operator support, and authenticated tensor placement still determine whether a particular model can actually execute. **235B full inference, persistent KV recovery, and distributed E-CPU-native Transformer execution remain unverified development objectives.**
 
+## VP-004: Ground-navigated native neural queries (draft)
+
+Rather than introducing another computation interpreter, VP-004 **connects existing E-CPU components in one receiver**: a declared token-coordinate Ground is admitted to E-CPU Structural Memory, observed at a requested logical coordinate through `VerifiedGroundRealizer` and the receiver Hypervisor, and committed as the prerequisite of a real, parameter-bearing sparse neural operator in an E-CPU `NavigableComputationDAG`. That operator runs through the **same receiver's** `VirtualLayerRuntime` and Hypervisor, and its numerical result is independently checked against the admitted tensor bytes before the DAG completes.
+
+```sh
+python examples/provision_sparse_demo.py --output vp004-demo
+python -m vp.ground_neural --index vp004-demo/weights.json \
+  --hidden vp004-demo/hidden.json --token-coordinate 1000000000013 \
+  --request-id my-neural-observation
+```
+
+The example uses **synthetic expert weights**. The numerical execution is real, but it is a sparse MoE **sublayer**, not yet an entire Qwen3 Transformer or an autoregressive model. The token-position Ground is a declared, exact arithmetic law and does not manufacture pretrained hidden activations. For real model weights, use VP-003's pinned Qwen3 Safetensors source adapter and supply the correct preceding-layer hidden activation. Read [VP-004](docs/VP-004.md) for verification, permission-refusal tests, and the roadmap to full native attention and recoverable generation. This PR is stacked on the pending VP-002/003 drafts; native hosted CI has not yet completed.
+
 ## Vision
 
 We seek a processor whose identity is constituted by a coherent, independently verifiable computational state-space—not by an always-running operating-system process. Observation can produce a computational result, and a Ground can make distant coordinates directly navigable without enumerating intermediate states. An appropriate host realizes an admitted transformation, verifies it, and returns the processor to its addressable, recoverable state.
