@@ -109,6 +109,8 @@ The virtual processor now has a **query API**, beyond the VP-001 affine cursor a
 
 Run a **local synthetic 128-expert** numerical experiment with `python examples/provision_sparse_demo.py`, then `python -m vp.sparse_query --index local-moe-demo/weights.json --hidden local-moe-demo/hidden.json --request-id first` after provisioning E-CPU. Query a **real pretrained text model** through `python -m vp.query --model-id <model> --revision <40-char-sha> --prompt 'Hello' --request-id first` with separately provisioned weights and the optional Transformers/Accelerate dependencies. For a warm HTTP endpoint, run `python -m vp.query_server` with explicit model/revision and an API token. See [VP-003 executable usage and evidence contract](docs/VP-003.md).
 
+To bind an actual **Qwen3-30B/235B Safetensors snapshot** to E-CPU's sparse operator, run `python -m vp.qwen_snapshot` with the published model profile, a real hidden-vector observation, and a locally provisioned source snapshot. It reads the genuine router, selects only the required experts and verifies their weight-shard identities before execution. See the [VP-003 Qwen3 source adapter](docs/VP-003.md#use-an-actual-qwen3-local-checkpoint-without-materializing-all-experts).
+
 The interfaces do **not** hard-code a total model parameter count. Resource feasibility, accessible weights, numerical operator support, and authenticated tensor placement still determine whether a particular model can actually execute. **235B full inference, persistent KV recovery, and distributed E-CPU-native Transformer execution remain unverified development objectives.**
 
 ## Vision
