@@ -22,7 +22,8 @@ class NativeInferenceHost:
 
     def __init__(self, handler: Callable[[dict],dict], *, node_id: str,
                  model_ground: str, operator_id: str, allow_compute: bool = True,
-                 max_input_bytes: int = 1_000_000, max_output_bytes: int = 1_000_000):
+                 max_input_bytes: int = 1_000_000, max_output_bytes: int = 1_000_000,
+                 structural_memory_admission_policy=None):
         from mailcpu import (Capability, HeadlessOS, OperatorRegistry, OperatorSpec,
                              SystemIdentity, SystemSeed, SystemSeedEnvelope,
                              VirtualGroundRef, VirtualLayerRuntime)
@@ -34,7 +35,7 @@ class NativeInferenceHost:
         self.node_id = node_id
         self.model_ground = model_ground
         self.operator_id = operator_id
-        self.system = HeadlessOS()
+        self.system = HeadlessOS(structural_memory_admission_policy=structural_memory_admission_policy)
         self.system.hypervisor.classifier = LexicalDecisionModel()
         self.system.hypervisor.policy = HypervisorPolicy(embedding_review_confidence=1.0)
         self.identity = SystemIdentity("vp-model-" + node_id, 1)
@@ -71,6 +72,9 @@ class NativeInferenceHost:
         from mailcpu.classifier import HypervisorAction
         if not isinstance(request,dict) or request.get("model_ground") != self.model_ground:
             raise NativeInferenceRefused("wrong model binding before admission")
+        if type(sequence) is not int or sequence < 1:
+            raise NativeInferenceRefused("operation sequence must be positive")
+        logical_time = 16 + sequence
         operation = VirtualLayerWorkload(
             workload_id="vp003-" + str(request.get("request_id", "invalid")),
             system=self.identity, ground=self.ground,
@@ -78,9 +82,9 @@ class NativeInferenceHost:
             operators=(VirtualOperatorRef(self.operator_id,1,"cpu",self.node_id),),
             input_value=request,
             budget=VirtualBudget(4_000_000,1_000_000,1_000_000),
-            logical_time=17,eligible_nodes=(self.node_id,),max_hops=1)
+            logical_time=logical_time,eligible_nodes=(self.node_id,),max_hops=1)
         native = self.runtime.execute_operator(self.system,self.pid,"vp-requester",
-                           "vp003.inference",sequence,17,operation,self.operator_id)
+                           "vp003.inference",sequence,logical_time,operation,self.operator_id)
         if native.action is not HypervisorAction.ALLOW or not native.executed:
             return {"accepted":False,"hypervisor_action":native.action.value,
                     "executed":bool(native.executed),"handler_calls":self.calls}
