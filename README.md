@@ -6,6 +6,18 @@ The processor is not the GitHub runner. The runner is one available observer-hos
 
 > **VP-001 is operationally narrow by design.** It is a real, runnable E-CPU affine-orbit navigator with durable, hash-chained interaction history, **not** a general-purpose hosted VM, a perpetually running process, a physical-path compute benchmark, or a quorum-backed production authority. Expand the realization methods after establishing independently verifiable continuity.
 
+## Computational structures
+
+In modern computing, a **computational structure** is an organized system of representations, states, relationships, and transformation rules that defines possible computational behavior. Examples include state machines, data structures, algorithms, circuits, memory hierarchies, computational graphs, and neural networks. These structures can be mathematical descriptions, executable arrangements, or physical implementations—and often combine several of these forms.
+
+Three distinctions are essential:
+
+- **Structure and data:** a structure organizes information; particular values or parameters instantiate it, and may themselves have structure.
+- **Structure and execution:** a rule can define possible transitions without requiring every state to be stored, visited, or executed in sequence.
+- **Structure and realization:** equivalent computations may be realized through different processors, software interpreters, or other qualified mechanisms.
+
+A computational structure describes **what is representable and transformable**; an execution or observation obtains a particular result. The virtual processor starts with one exact affine-modular Ground, then aims to admit and navigate additional verified computational structures through E-CPU's existing capabilities—not to confuse the structure with any one host that realizes it.
+
 ## Interact now via GitHub Actions
 
 1. Open **[Actions → Interact with E-CPU Virtual Processor](https://github.com/Kier73/E-CPU-Virtual-Processor/actions/workflows/processor.yml)**.
