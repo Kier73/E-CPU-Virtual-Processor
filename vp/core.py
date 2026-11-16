@@ -184,8 +184,8 @@ def _genesis(event: Any) -> Snapshot:
     _keys(event, {"schema", "kind", "sequence", "previous", "processor_id",
                   "ground", "coordinate", "value", "realizer", "ecpu_revision", "digest"}, "genesis")
     if (event["schema"] != EVENT_SCHEMA or event["kind"] != "genesis" or
-        event["sequence"] != 0 or event["previous"] != _ZERO or
-        event["coordinate"] != 0 or event["realizer"] != REALIZER or
+        type(event["sequence"]) is not int or event["sequence"] != 0 or event["previous"] != _ZERO or
+        type(event["coordinate"]) is not int or event["coordinate"] != 0 or event["realizer"] != REALIZER or
         event["ecpu_revision"] != ECPU_REVISION):
         raise ProcessorRefused("invalid genesis contract")
     _identifier(event["processor_id"], "processor_id")
@@ -217,10 +217,13 @@ def _verify_transition(event: Any, previous: Snapshot) -> Snapshot:
     expected_after, expected_observation = _realize(previous, intent)
     if event["after"] != expected_after or event["observation"] != expected_observation:
         raise ProcessorRefused("native computation or observation mismatch")
+    # A verified journal is replayed in order. Reuse its ephemeral request index
+    # rather than cloning an ever-growing mapping for every record (O(n^2)).
+    # This mutation happens only after the full transition has been checked.
+    previous.requests[intent["request_id"]] = event
     return Snapshot(previous.processor_id, previous.ground,
                     expected_after["coordinate"], expected_after["value"],
-                    event["sequence"], event["digest"],
-                    {**previous.requests, intent["request_id"]: event})
+                    event["sequence"], event["digest"], previous.requests)
 
 
 def parse_journal(encoded: str) -> tuple[list[dict[str, Any]], Snapshot]:

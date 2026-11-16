@@ -123,6 +123,26 @@ class ProcessorProtocolTests(unittest.TestCase):
         with self.assertRaisesRegex(core.ProcessorRefused, "genesis value"):
             core.bootstrap(self.path)
 
+    def test_reconstruct_many_receipts_with_one_request_index(self):
+        core.bootstrap(self.path)
+        for i in range(250):
+            core.run(self.path, self.intent(f"bulk-{i}", "peek", target=i * 13))
+        events, state = core.load(self.path)
+        self.assertEqual(len(events), 251)
+        self.assertEqual(len(state.requests), 250)
+        self.assertEqual(state.coordinate, 0)
+        self.assertEqual(state.value, 73)
+        self.assertTrue(core.run(self.path, self.intent("bulk-73", "peek", target=73*13))["replayed"])
+
+    def test_rehashed_boolean_genesis_coordinate_is_refused(self):
+        core.bootstrap(self.path)
+        events, _ = core.load(self.path)
+        events[0]["coordinate"] = False
+        events[0]["digest"] = core.digest({k: v for k, v in events[0].items() if k != "digest"})
+        core.save_atomic(self.path, core.serialize(events))
+        with self.assertRaisesRegex(core.ProcessorRefused, "genesis contract"):
+            core.load(self.path)
+
     def test_no_code_execution_or_unsanctioned_ground_fields(self):
         core.bootstrap(self.path)
         with self.assertRaises(core.ProcessorRefused):
