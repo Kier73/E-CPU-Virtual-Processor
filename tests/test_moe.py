@@ -173,3 +173,22 @@ class FrontierTests(unittest.TestCase):
         plan["digest"] = digest(plan["frontier"])
         with self.assertRaises(MoERefusal):
             verify_layer_frontier(m, receipt, plan)
+
+
+class ECPUIntegrationTests(unittest.TestCase):
+    def test_native_dag_ready_and_snapshot_reconstruction(self):
+        try:
+            from mailcpu.computation_dag import NavigableComputationDAG
+        except ImportError:
+            self.skipTest("native E-CPU is not installed in this local Python runtime")
+        from vp.moe import compile_ecpu_dag
+        m = ModelGround.published("qwen3-235b-a22b")
+        r = route_experts(m, layer=93, token=40959, logits=[float(i) for i in range(128)])
+        receipt = {"receipt": r.snapshot(), "digest": r.receipt_digest}
+        dag = compile_ecpu_dag(m, receipt)
+        self.assertEqual(len(dag.nodes), 25)
+        self.assertEqual([node.node_id for node in dag.ready_nodes()], ["l93:t40959:hidden"])
+        snap = dag.snapshot()
+        restored = NavigableComputationDAG.from_snapshot(snap)
+        self.assertEqual(restored.snapshot()["digest"], snap["digest"])
+        self.assertEqual([node.node_id for node in restored.ready_nodes()], ["l93:t40959:hidden"])

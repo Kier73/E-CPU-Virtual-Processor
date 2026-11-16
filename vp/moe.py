@@ -380,6 +380,31 @@ def verify_layer_frontier(ground: ModelGround, route: Mapping[str, Any],
         raise MoERefusal("frontier dependency or tensor binding differs from Ground")
 
 
+def compile_ecpu_dag(ground: ModelGround, report: Mapping[str, Any]) -> Any:
+    """Instantiate the *actual* MailCPU dependency DAG for one sparse layer.
+
+    This binds native content-addressed DAG nodes and readiness only. It cannot
+    authorize or execute any of the planned numerical operators.
+    """
+    try:
+        from mailcpu.computation_dag import ComputationNode, NavigableComputationDAG
+    except ImportError as exc:
+        raise MoERefusal("native E-CPU mailcpu package is required for DAG integration") from exc
+    frontier = compile_layer_frontier(ground, report)["frontier"]
+    nodes = [
+        ComputationNode(
+            node_id=task["id"], revision=1, operation=task["operator"],
+            resource="/model/moe/tensor", context_digest=ground.identifier,
+            dependencies=task["dependencies"],
+            payload={"model_ground": ground.identifier,
+                     "router_receipt_digest": report["digest"],
+                     "layer": frontier["layer"], "token_position": frontier["token_position"],
+                     "tensor_refs": task["tensor_refs"], "execution": "not-performed"},
+        ) for task in frontier["tasks"]
+    ]
+    return NavigableComputationDAG(nodes)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="E-CPU VP-002 large-MoE structure and routing reference")
     parser.add_argument("command", choices=("describe", "route", "verify", "frontier"))
