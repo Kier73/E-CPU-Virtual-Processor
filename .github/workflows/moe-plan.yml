@@ -1,0 +1,82 @@
+name: VP-002 large MoE structure and routing
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: 'Pinned Qwen3 MoE architecture (synthetic router scores only)'
+        type: choice
+        options:
+          - qwen3-30b-a3b
+          - qwen3-235b-a22b
+        required: true
+      layer:
+        description: 'Layer index; 0..47 or 0..93'
+        type: number
+        default: 0
+        required: true
+      token:
+        description: 'Logical token position; 0..40959'
+        type: number
+        default: 0
+        required: true
+  pull_request:
+    paths:
+      - 'vp/moe.py'
+      - 'tests/test_moe.py'
+      - 'docs/VP-002.md'
+      - '.github/workflows/moe-plan.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'vp/moe.py'
+      - 'tests/test_moe.py'
+      - 'docs/VP-002.md'
+      - '.github/workflows/moe-plan.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-moe:
+    name: large MoE architectural reference (${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Validate expert routing and numerical reference invariants
+        run: python -m unittest discover -s tests -p 'test_moe.py' -v
+      - name: Prepare a 235B-scale frontier (no pretrained model executed)
+        shell: bash
+        env:
+          MODEL: ${{ github.event.inputs.model || 'qwen3-235b-a22b' }}
+          LAYER: ${{ github.event.inputs.layer || '0' }}
+          TOKEN: ${{ github.event.inputs.token || '0' }}
+        run: |
+          set -euo pipefail
+          python -m vp.moe describe --model "$MODEL" > structure.json
+          python -c 'import json; print(json.dumps([float(i % 13) for i in range(128)]))' > synthetic-router.json
+          python -m vp.moe route --model "$MODEL" --layer "$LAYER" --token "$TOKEN" --logits synthetic-router.json > route.json
+          python -m vp.moe verify --model "$MODEL" --receipt route.json
+          python -m vp.moe frontier --model "$MODEL" --receipt route.json > frontier.json
+          {
+            echo '## Architectural-only MoE sample'
+            echo 'This is synthetic router evidence. No model weights or neural inference were executed.'
+            echo '```json'
+            cat structure.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: moe-structure-reference-${{ matrix.python }}
+          path: |
+            structure.json
+            route.json
+            frontier.json
+          if-no-files-found: error
