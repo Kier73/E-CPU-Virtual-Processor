@@ -92,6 +92,14 @@ The journal stores canonical JSON events linked by SHA-256. Every read rechecks 
 
 [VP-001 specification and advancement plan](docs/VP-001.md)
 
+## VP-002: large Mixture-of-Experts computational structures (in development)
+
+The next research target is **sparse, multi-billion-parameter model computation**, not another GPT-2 graph example. VP-002 introduces pinned Qwen3 MoE architectural Grounds for **30B-A3B** (48 layers, 6,144 expert instances) and **235B-A22B** (94 layers, 12,032 expert instances). The module can lazily address their tensors, compute bounded memory budgets, reconstruct **top-8 expert routing** from supplied logits, and produce a **25-operation, verified layer-local execution frontier** without materializing all experts.
+
+This is an **architectural control-plane milestone**, not a claim that a pretrained model has generated tokens. No model weights are loaded, no model router logits are computed, and no neural numerical operators have yet executed. E-CPU's existing tensor operators, typed graph, Virtual Layer and authority/recovery systems are the intended execution substrate.
+
+Run `python -m vp.moe describe --model qwen3-235b-a22b` or use the [large MoE reference Action](.github/workflows/moe-plan.yml). Read the [VP-002 specification, verification contract and exact reproduction commands](docs/VP-002.md).
+
 ## Vision
 
 We seek a processor whose identity is constituted by a coherent, independently verifiable computational state-space—not by an always-running operating-system process. Observation can produce a computational result, and a Ground can make distant coordinates directly navigable without enumerating intermediate states. An appropriate host realizes an admitted transformation, verifies it, and returns the processor to its addressable, recoverable state.
