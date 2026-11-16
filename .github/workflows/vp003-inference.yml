@@ -5,11 +5,13 @@ on:
   pull_request:
     paths:
       - 'vp/neural_inference.py'
+      - 'vp/qwen_snapshot.py'
       - 'vp/native_inference.py'
       - 'vp/sparse_query.py'
       - 'vp/query.py'
       - 'vp/query_server.py'
       - 'tests/test_neural_inference.py'
+      - 'tests/test_qwen_snapshot.py'
       - 'tests/test_native_inference.py'
       - 'docs/VP-003.md'
       - '.github/workflows/vp003-inference.yml'
@@ -44,6 +46,8 @@ jobs:
           python -m pip install numpy torch safetensors
       - name: Prove independent PyTorch and scalar agreement; reject tampering
         run: python -m unittest discover -s tests -p 'test_neural_inference.py' -v
+      - name: Verify real Safetensors router-driven expert selection
+        run: python -m unittest discover -s tests -p 'test_qwen_snapshot.py' -v
       - name: Require real Hypervisor ALLOW, replay and DENY tests
         run: |
           python -c 'import mailcpu; print("native E-CPU imported")'

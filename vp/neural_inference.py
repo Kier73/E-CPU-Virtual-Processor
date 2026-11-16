@@ -144,8 +144,11 @@ class SparseWeightIndex:
             raise InferenceRefused(f"required tensor not provisioned: {name}")
         ref = self.record["tensors"][name]
         path = self.root / ref["file"]
-        if path.is_symlink() or not path.is_file():
-            raise InferenceRefused("weight path is not a regular local file")
+        # Hugging Face local snapshots commonly use symlinks into their blob
+        # store. The receiver verifies exact content bytes regardless of the
+        # local alias; requesters cannot supply this path at invocation time.
+        if not path.is_file() or not path.resolve(strict=True).is_file():
+            raise InferenceRefused("weight path does not resolve to a regular file")
         stat = path.stat()
         stamp = (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
         seen = verified_files if verified_files is not None else {}
