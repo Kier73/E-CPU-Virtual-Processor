@@ -1,0 +1,115 @@
+name: VP-003 real neural inference and cross-repository integration
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'vp/neural_inference.py'
+      - 'vp/qwen_snapshot.py'
+      - 'vp/native_inference.py'
+      - 'vp/sparse_query.py'
+      - 'vp/query.py'
+      - 'vp/query_server.py'
+      - 'tests/test_neural_inference.py'
+      - 'tests/test_qwen_snapshot.py'
+      - 'tests/test_native_inference.py'
+      - 'docs/VP-003.md'
+      - '.github/workflows/vp003-inference.yml'
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  native-sparse:
+    name: Native E-CPU neural math (${{ matrix.python }})
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.13']
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: Kier73/E-CPU
+          ref: 6fd416facdb2aefd6fc7d66a06b014e3d31b5a52
+          path: external/ecpu
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install exact E-CPU and numeric runtimes
+        run: |
+          python -m pip install -e external/ecpu
+          python -m pip install numpy torch safetensors
+      - name: Prove independent PyTorch and scalar agreement; reject tampering
+        run: python -m unittest discover -s tests -p 'test_neural_inference.py' -v
+      - name: Verify real Safetensors router-driven expert selection
+        run: python -m unittest discover -s tests -p 'test_qwen_snapshot.py' -v
+      - name: Require real Hypervisor ALLOW, replay and DENY tests
+        run: |
+          python -c 'import mailcpu; print("native E-CPU imported")'
+          python -m unittest discover -s tests -p 'test_native_inference.py' -v
+      - name: Generate and query 128-expert synthetic weights through E-CPU
+        run: |
+          python examples/provision_sparse_demo.py --output local-moe-demo
+          python -m vp.sparse_query \
+            --index local-moe-demo/weights.json \
+            --hidden local-moe-demo/hidden.json \
+            --request-id vp003-native-smoke \
+            > vp003-native-receipt.json
+          python - <<'PY'
+          import json
+          result = json.load(open('vp003-native-receipt.json'))
+          assert result['accepted'] is True
+          assert result['hypervisor_action'] == 'allow'
+          assert result['result']['receipt']['actual_neural_math_executed'] is True
+          assert len(result['result']['receipt']['selected_experts']) == 8
+          print('native E-CPU sparse numerical inference committed')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: vp003-native-receipt-${{ matrix.python }}
+          path: vp003-native-receipt.json
+          if-no-files-found: error
+
+  established-cross-repo-mechanisms:
+    name: Existing IFS tensor cut and VGI proof interpreter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: Kier73/E-CPU
+          ref: 6fd416facdb2aefd6fc7d66a06b014e3d31b5a52
+          path: external/ecpu
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: Kier73/In-Formation-Space
+          ref: c9716242725be65937fda1dd7b6cb778ca1def91
+          path: external/ifs
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: Kier73/Virtual-Ground-Interpreter
+          ref: e6e1900782aeede18a4de9046511bbba234dbc6e
+          path: external/vgi
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install pinned three-repository runtime contracts
+        run: |
+          python -m pip install -e external/ecpu
+          python -m pip install -e external/vgi/virtual_ground_interpreter
+          python -m pip install numpy torch safetensors
+      - name: Run existing IFS native neural tensor cut with E-CPU Hypervisor
+        env:
+          PYTHONPATH: external/ifs:.
+        run: python -m unittest experiments.tensor_cut_realization.test_native_admission -v
+      - name: Verify existing VGI runtime and proof contract
+        run: python -m vgi verify
