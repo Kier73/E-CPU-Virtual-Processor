@@ -1,0 +1,84 @@
+name: VP-005 navigable model observer-host circuit
+
+on:
+  push:
+    paths:
+      - 'vp/navigable_experts.py'
+      - 'tests/test_navigable_experts.py'
+      - '.github/workflows/vp005-navigable-experts.yml'
+  pull_request:
+    paths:
+      - 'vp/navigable_experts.py'
+      - 'tests/test_navigable_experts.py'
+      - '.github/workflows/vp005-navigable-experts.yml'
+  workflow_dispatch:
+
+jobs:
+  local-math:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m unittest discover -s tests -p 'test_navigable_experts.py' -v
+
+  observer-plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Form model intention without N-sized realization
+        run: python -m vp.navigable_experts plan --out plan.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vp005-plan
+          path: plan.json
+          if-no-files-found: error
+
+  observer-receiver:
+    needs: observer-plan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install actual E-CPU native interpreter and Hypervisor
+        run: python -m pip install 'git+https://github.com/Kier73/E-CPU.git@6fd416facdb2aefd6fc7d66a06b014e3d31b5a52'
+      - uses: actions/download-artifact@v4
+        with:
+          name: vp005-plan
+      - name: Realize the selected exact expert frontier under receiver authority
+        run: |
+          python -c 'from mailcpu.law_certifier import lcg_navigate; from mailcpu import VirtualLayerRuntime; print("Native E-CPU verified imports")'
+          GROUND="$(python -c 'from vp.navigable_experts import ExpertGround; print(ExpertGround(1<<48, 8, 3, 4).fingerprint)')"
+          python -m vp.navigable_experts execute --plan plan.json --out report.json --expected-ground "$GROUND"
+          python -m unittest discover -s tests -p 'test_navigable_experts.py' -v
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vp005-report
+          path: report.json
+          if-no-files-found: error
+
+  independent-observer-verifier:
+    needs: [observer-plan, observer-receiver]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/download-artifact@v4
+        with:
+          name: vp005-report
+      - name: Independently check grounded source and every selected neural output
+        run: |
+          GROUND="$(python -c 'from vp.navigable_experts import ExpertGround; print(ExpertGround(1<<48, 8, 3, 4).fingerprint)')"
+          python -m vp.navigable_experts verify --report report.json --expected-ground "$GROUND"
